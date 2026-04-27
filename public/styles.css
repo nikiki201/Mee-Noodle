@@ -298,6 +298,12 @@ textarea {
   color: var(--muted);
 }
 
+.reservation-card-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -316,6 +322,19 @@ textarea {
   border-radius: 24px;
   padding: 1.5rem;
   color: var(--muted);
+}
+
+.button-danger {
+  background: #b23a2d;
+}
+
+.button-danger:hover {
+  background: #942d22;
+}
+
+.mute {
+  color: var(--muted);
+  margin: 0.35rem 0 0;
 }
 
 @media (max-width: 860px) {
