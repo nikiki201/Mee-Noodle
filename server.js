@@ -71,7 +71,7 @@ function requireManagerAuth(req, res, next) {
 
 app.use(cors());
 app.use(express.json());
-app.use(['/reservations', '/reservations.html', '/api/reservations'], (req, res, next) => {
+app.use(['/reservations', '/reservations.html', '/mobile-admin.html', '/api/reservations'], (req, res, next) => {
   if (req.method === 'POST') {
     return next();
   }

@@ -1,0 +1,27 @@
+{
+  "name": "Bistro Admin",
+  "short_name": "BistroAdmin",
+  "description": "Application mobile de gestion des réservations du Bistro du Quai",
+  "start_url": "/mobile-admin.html",
+  "display": "standalone",
+  "background_color": "#f4f4f4",
+  "theme_color": "#2c5530",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "fr"
+}

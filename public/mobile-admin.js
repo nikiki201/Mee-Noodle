@@ -1,0 +1,423 @@
+// Mobile Admin App
+class MobileAdmin {
+  constructor() {
+    this.reservations = [];
+    this.currentFilter = 'all';
+    this.currentTab = 'reservations';
+    this.authToken = null;
+
+    this.init();
+  }
+
+  init() {
+    this.bindEvents();
+    this.checkAuth();
+  }
+
+  bindEvents() {
+    // Login form
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+      loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+    }
+
+    // Logout
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => this.handleLogout());
+    }
+
+    // Navigation
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+    });
+
+    // Search
+    const searchInput = document.getElementById('mobile-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
+    }
+
+    // Filters
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.handleFilter(e.target.dataset.filter));
+    });
+
+    // Modal
+    const modal = document.getElementById('reservation-modal');
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal') || e.target.classList.contains('modal-close')) {
+          this.closeModal();
+        }
+      });
+    }
+
+    // Delete reservation
+    const deleteBtn = document.getElementById('delete-reservation-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => this.deleteCurrentReservation());
+    }
+  }
+
+  async handleLogin(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    try {
+      const response = await fetch('/api/reservations', {
+        headers: {
+          'Authorization': 'Basic ' + btoa(username + ':' + password)
+        }
+      });
+
+      if (response.ok) {
+        this.authToken = btoa(username + ':' + password);
+        localStorage.setItem('adminAuth', this.authToken);
+        this.showApp();
+        this.loadReservations();
+        this.loadStats();
+      } else {
+        this.showLoginError('Identifiants incorrects');
+      }
+    } catch (error) {
+      this.showLoginError('Erreur de connexion');
+      console.error(error);
+    }
+  }
+
+  handleLogout() {
+    this.authToken = null;
+    localStorage.removeItem('adminAuth');
+    this.showLogin();
+  }
+
+  checkAuth() {
+    const savedAuth = localStorage.getItem('adminAuth');
+    if (savedAuth) {
+      this.authToken = savedAuth;
+      this.showApp();
+      this.loadReservations();
+      this.loadStats();
+    } else {
+      this.showLogin();
+    }
+  }
+
+  showLogin() {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+  }
+
+  showApp() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'flex';
+  }
+
+  showLoginError(message) {
+    const errorDiv = document.getElementById('login-error');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+  }
+
+  switchTab(tabName) {
+    // Update navigation
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+    // Update content
+    document.querySelectorAll('.tab-content').forEach(content => {
+      content.classList.remove('active');
+    });
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+
+    this.currentTab = tabName;
+
+    if (tabName === 'stats') {
+      this.loadStats();
+    }
+  }
+
+  async loadReservations() {
+    try {
+      const response = await fetch('/api/reservations', {
+        headers: {
+          'Authorization': 'Basic ' + this.authToken
+        }
+      });
+
+      if (response.ok) {
+        this.reservations = await response.json();
+        this.renderReservations();
+      } else if (response.status === 401) {
+        this.handleLogout();
+      } else {
+        throw new Error('Erreur de chargement');
+      }
+    } catch (error) {
+      console.error('Erreur chargement réservations:', error);
+      this.showToast('Erreur de chargement des réservations', 'error');
+    }
+  }
+
+  async loadStats() {
+    if (this.reservations.length === 0) {
+      await this.loadReservations();
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const totalReservations = this.reservations.length;
+    const todayReservations = this.reservations.filter(r => {
+      const reservationDate = new Date(r.date);
+      return reservationDate.toDateString() === today.toDateString();
+    }).length;
+
+    const totalGuests = this.reservations.reduce((sum, r) => sum + r.guests, 0);
+    const avgGuests = totalReservations > 0 ? Math.round(totalGuests / totalReservations) : 0;
+
+    document.getElementById('total-reservations').textContent = totalReservations;
+    document.getElementById('today-reservations').textContent = todayReservations;
+    document.getElementById('total-guests').textContent = totalGuests;
+    document.getElementById('avg-guests').textContent = avgGuests;
+  }
+
+  renderReservations() {
+    const filteredReservations = this.filterReservations();
+    const reservationsList = document.getElementById('reservations-list');
+    const emptyState = document.getElementById('empty-state');
+    const countText = document.getElementById('reservations-count-text');
+
+    if (filteredReservations.length === 0) {
+      reservationsList.innerHTML = '';
+      emptyState.style.display = 'block';
+      countText.textContent = '0 réservation';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    countText.textContent = `${filteredReservations.length} réservation${filteredReservations.length > 1 ? 's' : ''}`;
+
+    reservationsList.innerHTML = filteredReservations.map(reservation => `
+      <div class="reservation-card" data-id="${reservation.id}" onclick="mobileAdmin.showReservationDetails(${reservation.id})">
+        <div class="reservation-header">
+          <h3 class="reservation-name">${this.escapeHtml(reservation.name)}</h3>
+          <span class="reservation-guests">${reservation.guests} pers.</span>
+        </div>
+        <div class="reservation-info">
+          <div>${this.escapeHtml(reservation.email)}</div>
+          <div class="reservation-date">${this.formatDate(reservation.date)} à ${reservation.time}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  filterReservations() {
+    let filtered = [...this.reservations];
+
+    // Filter by date
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (this.currentFilter) {
+      case 'today':
+        filtered = filtered.filter(r => {
+          const reservationDate = new Date(r.date);
+          return reservationDate.toDateString() === today.toDateString();
+        });
+        break;
+      case 'upcoming':
+        filtered = filtered.filter(r => new Date(r.date) >= today);
+        break;
+    }
+
+    // Filter by search
+    const searchTerm = document.getElementById('mobile-search').value.toLowerCase().trim();
+    if (searchTerm) {
+      filtered = filtered.filter(r =>
+        r.name.toLowerCase().includes(searchTerm) ||
+        r.email.toLowerCase().includes(searchTerm) ||
+        r.date.includes(searchTerm) ||
+        r.time.includes(searchTerm) ||
+        (r.phone && r.phone.includes(searchTerm))
+      );
+    }
+
+    // Sort by date (most recent first)
+    filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return filtered;
+  }
+
+  handleSearch(query) {
+    this.renderReservations();
+  }
+
+  handleFilter(filter) {
+    // Update filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+
+    this.currentFilter = filter;
+    this.renderReservations();
+  }
+
+  showReservationDetails(id) {
+    const reservation = this.reservations.find(r => r.id === id);
+    if (!reservation) return;
+
+    const details = document.getElementById('reservation-details');
+    details.innerHTML = `
+      <div class="reservation-detail">
+        <span class="detail-label">Nom :</span>
+        <span class="detail-value">${this.escapeHtml(reservation.name)}</span>
+      </div>
+      <div class="reservation-detail">
+        <span class="detail-label">Email :</span>
+        <span class="detail-value">${this.escapeHtml(reservation.email)}</span>
+      </div>
+      <div class="reservation-detail">
+        <span class="detail-label">Téléphone :</span>
+        <span class="detail-value">${this.escapeHtml(reservation.phone || 'Non fourni')}</span>
+      </div>
+      <div class="reservation-detail">
+        <span class="detail-label">Date :</span>
+        <span class="detail-value">${this.formatDate(reservation.date)}</span>
+      </div>
+      <div class="reservation-detail">
+        <span class="detail-label">Heure :</span>
+        <span class="detail-value">${reservation.time}</span>
+      </div>
+      <div class="reservation-detail">
+        <span class="detail-label">Nombre de personnes :</span>
+        <span class="detail-value">${reservation.guests}</span>
+      </div>
+      <div class="reservation-detail">
+        <span class="detail-label">Message :</span>
+        <span class="detail-value">${this.escapeHtml(reservation.message || 'Aucun')}</span>
+      </div>
+      <div class="reservation-detail">
+        <span class="detail-label">Créée le :</span>
+        <span class="detail-value">${this.formatDateTime(reservation.created_at)}</span>
+      </div>
+    `;
+
+    document.getElementById('delete-reservation-btn').dataset.id = id;
+    document.getElementById('reservation-modal').style.display = 'flex';
+  }
+
+  closeModal() {
+    document.getElementById('reservation-modal').style.display = 'none';
+  }
+
+  async deleteCurrentReservation() {
+    const id = document.getElementById('delete-reservation-btn').dataset.id;
+    if (!id) return;
+
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette réservation ?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/reservations/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': 'Basic ' + this.authToken
+        }
+      });
+
+      if (response.ok) {
+        this.reservations = this.reservations.filter(r => r.id !== parseInt(id));
+        this.renderReservations();
+        this.loadStats();
+        this.closeModal();
+        this.showToast('Réservation supprimée avec succès');
+      } else {
+        throw new Error('Erreur de suppression');
+      }
+    } catch (error) {
+      console.error('Erreur suppression:', error);
+      this.showToast('Erreur lors de la suppression', 'error');
+    }
+  }
+
+  formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
+
+  formatDateTime(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    const messageEl = document.getElementById('toast-message');
+
+    toast.className = `toast ${type}`;
+    messageEl.textContent = message;
+    toast.style.display = 'block';
+
+    setTimeout(() => {
+      toast.style.display = 'none';
+    }, 3000);
+  }
+}
+
+// Initialize the app
+const mobileAdmin = new MobileAdmin();
+
+// PWA Installation
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  // Show install button if desired
+  const installBtn = document.createElement('button');
+  installBtn.textContent = 'Installer l\'app';
+  installBtn.className = 'btn btn-primary';
+  installBtn.style.position = 'fixed';
+  installBtn.style.bottom = '20px';
+  installBtn.style.right = '20px';
+  installBtn.style.zIndex = '1000';
+
+  installBtn.addEventListener('click', () => {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+      }
+      deferredPrompt = null;
+      installBtn.remove();
+    });
+  });
+
+  document.body.appendChild(installBtn);
+});
