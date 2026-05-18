@@ -58,6 +58,11 @@ class MobileAdmin {
     if (editBtn) {
       editBtn.addEventListener('click', () => this.toggleEditMode());
     }
+
+    const deleteBtn = document.getElementById('delete-reservation-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => this.deleteCurrentReservation());
+    }
   }
 
   async handleLogin(e) {
@@ -80,7 +85,7 @@ class MobileAdmin {
         this.loadReservations();
         this.loadStats();
       } else {
-        this.showLoginError('Identifiants incorrects');
+        this.showLoginError('Incorrect credentials');
       }
     } catch (error) {
       this.showLoginError('Connection error');
@@ -280,7 +285,7 @@ class MobileAdmin {
         <span class="detail-value">${this.escapeHtml(reservation.name)}</span>
       </div>
       <div class="reservation-detail">
-        <span class="detail-label">Email :</span>
+        <span class="detail-label">Email:</span>
         <span class="detail-value">${this.escapeHtml(reservation.email)}</span>
       </div>
       <div class="reservation-detail">
@@ -288,7 +293,7 @@ class MobileAdmin {
         <span class="detail-value">${this.escapeHtml(reservation.phone || 'Not provided')}</span>
       </div>
       <div class="reservation-detail">
-        <span class="detail-label">Date :</span>
+        <span class="detail-label">Date:</span>
         <span class="detail-value">${this.formatDate(reservation.date)}</span>
       </div>
       <div class="reservation-detail">
@@ -300,8 +305,8 @@ class MobileAdmin {
         <span class="detail-value">${reservation.guests}</span>
       </div>
       <div class="reservation-detail">
-        <span class="detail-label">Message :</span>
-        <span class="detail-value">${this.escapeHtml(reservation.message || 'Aucun')}</span>
+        <span class="detail-label">Message:</span>
+        <span class="detail-value">${this.escapeHtml(reservation.message || 'None')}</span>
       </div>
       <div class="reservation-detail">
         <span class="detail-label">Created:</span>
@@ -371,7 +376,7 @@ class MobileAdmin {
             <input type="text" id="edit-name" name="name" value="${this.escapeHtml(reservation.name)}" required>
           </div>
           <div class="form-group">
-            <label for="edit-email">Email :</label>
+            <label for="edit-email">Email:</label>
             <input type="email" id="edit-email" name="email" value="${this.escapeHtml(reservation.email)}" required>
           </div>
           <div class="form-group">
@@ -379,7 +384,7 @@ class MobileAdmin {
             <input type="tel" id="edit-phone" name="phone" value="${this.escapeHtml(reservation.phone || '')}">
           </div>
           <div class="form-group">
-            <label for="edit-date">Date :</label>
+            <label for="edit-date">Date:</label>
             <input type="date" id="edit-date" name="date" value="${reservation.date}" required>
           </div>
           <div class="form-group">
@@ -391,7 +396,7 @@ class MobileAdmin {
             <input type="number" id="edit-guests" name="guests" min="1" max="20" value="${reservation.guests}" required>
           </div>
           <div class="form-group">
-            <label for="edit-message">Message :</label>
+            <label for="edit-message">Message:</label>
             <textarea id="edit-message" name="message" rows="3">${this.escapeHtml(reservation.message || '')}</textarea>
           </div>
         </form>
