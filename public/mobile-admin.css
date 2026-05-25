@@ -117,6 +117,11 @@
   color: var(--text-color);
 }
 
+.btn-small {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.9rem;
+}
+
 .error-message {
   background: #fee;
   color: var(--danger-color);
@@ -259,7 +264,34 @@
 
 /* Reservations Count */
 .reservations-count {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.delete-selection-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  background: white;
+  border-radius: var(--border-radius);
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  box-shadow: var(--shadow);
+}
+
+.delete-selection-actions[hidden] {
+  display: none;
+}
+
+.delete-selection-actions span {
+  flex: 1;
+  min-width: 90px;
   font-weight: 600;
   color: var(--text-color);
 }
@@ -283,6 +315,34 @@
 .reservation-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.reservation-card.selected {
+  outline: 2px solid var(--danger-color);
+}
+
+.reservation-card-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+}
+
+.reservation-selector {
+  display: flex;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.reservation-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--danger-color);
+  cursor: pointer;
+}
+
+.reservation-card-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .reservation-header {

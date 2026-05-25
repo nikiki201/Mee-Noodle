@@ -79,6 +79,13 @@
 
         <div class="reservations-count">
           <span id="reservations-count-text">Loading...</span>
+          <button id="start-delete-selection-btn" class="btn btn-danger btn-small" type="button">Delete</button>
+        </div>
+
+        <div id="delete-selection-actions" class="delete-selection-actions" hidden>
+          <span id="selected-reservations-count">0 selected</span>
+          <button id="confirm-delete-selected-btn" class="btn btn-danger btn-small" type="button" disabled>Delete selected</button>
+          <button id="cancel-delete-selection-btn" class="btn btn-secondary btn-small" type="button">Cancel</button>
         </div>
 
         <div id="reservations-list" class="reservations-list"></div>

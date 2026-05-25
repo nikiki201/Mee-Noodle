@@ -6,6 +6,9 @@ class MobileAdmin {
     this.currentTab = 'reservations';
     this.authToken = null;
     this.refreshTimer = null;
+    this.isDeleteSelectionMode = false;
+    this.selectedReservationIds = new Set();
+    this.isDeletingReservations = false;
 
     this.init();
   }
@@ -43,6 +46,28 @@ class MobileAdmin {
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', (e) => this.handleFilter(e.target.dataset.filter));
     });
+
+    const startDeleteSelectionBtn = document.getElementById('start-delete-selection-btn');
+    if (startDeleteSelectionBtn) {
+      startDeleteSelectionBtn.addEventListener('click', () => this.startDeleteSelection());
+    }
+
+    const confirmDeleteSelectedBtn = document.getElementById('confirm-delete-selected-btn');
+    if (confirmDeleteSelectedBtn) {
+      confirmDeleteSelectedBtn.addEventListener('click', () => this.deleteSelectedReservations());
+    }
+
+    const cancelDeleteSelectionBtn = document.getElementById('cancel-delete-selection-btn');
+    if (cancelDeleteSelectionBtn) {
+      cancelDeleteSelectionBtn.addEventListener('click', () => this.cancelDeleteSelection());
+    }
+
+    const reservationsList = document.getElementById('reservations-list');
+    if (reservationsList) {
+      reservationsList.addEventListener('click', (e) => this.handleReservationCardClick(e));
+      reservationsList.addEventListener('change', (e) => this.handleReservationSelectionChange(e));
+      reservationsList.addEventListener('keydown', (e) => this.handleReservationCardKeydown(e));
+    }
 
     // Modal
     const modal = document.getElementById('reservation-modal');
@@ -180,6 +205,7 @@ class MobileAdmin {
         const hasNewReservation = nextReservations.some((reservation) => !previousIds.has(reservation.id));
 
         this.reservations = nextReservations;
+        this.pruneSelectedReservations();
         this.renderReservations();
 
         if (options.silent && hasNewReservation && previousIds.size > 0) {
@@ -221,6 +247,8 @@ class MobileAdmin {
     const emptyState = document.getElementById('empty-state');
     const countText = document.getElementById('reservations-count-text');
 
+    this.updateDeleteSelectionControls();
+
     if (filteredReservations.length === 0) {
       reservationsList.innerHTML = '';
       emptyState.style.display = 'block';
@@ -232,17 +260,114 @@ class MobileAdmin {
     countText.textContent = `${filteredReservations.length} reservation${filteredReservations.length > 1 ? 's' : ''}`;
 
     reservationsList.innerHTML = filteredReservations.map(reservation => `
-      <div class="reservation-card" data-id="${reservation.id}" onclick="mobileAdmin.showReservationDetails(${reservation.id})">
-        <div class="reservation-header">
-          <h3 class="reservation-name">${this.escapeHtml(reservation.name)}</h3>
-          <span class="reservation-guests">${reservation.guests} guests</span>
-        </div>
-        <div class="reservation-info">
-          <div>${this.escapeHtml(reservation.email)}</div>
-          <div class="reservation-date">${this.formatDate(reservation.date)} at ${reservation.time}</div>
+      <div class="reservation-card${this.selectedReservationIds.has(reservation.id) ? ' selected' : ''}" data-id="${reservation.id}" ${this.isDeleteSelectionMode ? '' : 'role="button" tabindex="0"'}>
+        <div class="reservation-card-row">
+          ${this.isDeleteSelectionMode ? `
+            <label class="reservation-selector">
+              <input class="reservation-checkbox" type="checkbox" data-selection-id="${reservation.id}" ${this.selectedReservationIds.has(reservation.id) ? 'checked' : ''} aria-label="Select reservation for ${this.escapeHtml(reservation.name)}">
+            </label>
+          ` : ''}
+          <div class="reservation-card-content">
+            <div class="reservation-header">
+              <h3 class="reservation-name">${this.escapeHtml(reservation.name)}</h3>
+              <span class="reservation-guests">${reservation.guests} guests</span>
+            </div>
+            <div class="reservation-info">
+              <div>${this.escapeHtml(reservation.email)}</div>
+              <div class="reservation-date">${this.formatDate(reservation.date)} at ${reservation.time}</div>
+            </div>
+          </div>
         </div>
       </div>
     `).join('');
+  }
+
+  updateDeleteSelectionControls() {
+    const startButton = document.getElementById('start-delete-selection-btn');
+    const actions = document.getElementById('delete-selection-actions');
+    const selectedCount = document.getElementById('selected-reservations-count');
+    const confirmButton = document.getElementById('confirm-delete-selected-btn');
+    const selectionCount = this.selectedReservationIds.size;
+
+    startButton.hidden = this.isDeleteSelectionMode;
+    startButton.disabled = this.reservations.length === 0 || this.isDeletingReservations;
+    actions.hidden = !this.isDeleteSelectionMode;
+    selectedCount.textContent = `${selectionCount} selected`;
+    confirmButton.disabled = selectionCount === 0 || this.isDeletingReservations;
+    confirmButton.textContent = this.isDeletingReservations ? 'Deleting...' : 'Delete selected';
+  }
+
+  startDeleteSelection() {
+    this.closeModal();
+    this.isDeleteSelectionMode = true;
+    this.selectedReservationIds.clear();
+    this.renderReservations();
+  }
+
+  cancelDeleteSelection() {
+    this.isDeleteSelectionMode = false;
+    this.selectedReservationIds.clear();
+    this.renderReservations();
+  }
+
+  pruneSelectedReservations() {
+    const currentIds = new Set(this.reservations.map((reservation) => reservation.id));
+    this.selectedReservationIds.forEach((id) => {
+      if (!currentIds.has(id)) {
+        this.selectedReservationIds.delete(id);
+      }
+    });
+  }
+
+  handleReservationCardClick(e) {
+    const card = e.target.closest('.reservation-card');
+    if (!card) return;
+
+    const id = Number.parseInt(card.dataset.id, 10);
+    if (this.isDeleteSelectionMode) {
+      if (!e.target.closest('.reservation-selector')) {
+        this.setReservationSelection(id, !this.selectedReservationIds.has(id));
+      }
+      return;
+    }
+
+    this.showReservationDetails(id);
+  }
+
+  handleReservationSelectionChange(e) {
+    const checkbox = e.target.closest('.reservation-checkbox');
+    if (!checkbox) return;
+
+    this.setReservationSelection(Number.parseInt(checkbox.dataset.selectionId, 10), checkbox.checked);
+  }
+
+  handleReservationCardKeydown(e) {
+    if (this.isDeleteSelectionMode || (e.key !== 'Enter' && e.key !== ' ')) return;
+
+    const card = e.target.closest('.reservation-card');
+    if (!card) return;
+
+    e.preventDefault();
+    this.showReservationDetails(Number.parseInt(card.dataset.id, 10));
+  }
+
+  setReservationSelection(id, selected) {
+    if (selected) {
+      this.selectedReservationIds.add(id);
+    } else {
+      this.selectedReservationIds.delete(id);
+    }
+
+    const card = document.querySelector(`.reservation-card[data-id="${id}"]`);
+    if (card) {
+      card.classList.toggle('selected', selected);
+      const checkbox = card.querySelector('.reservation-checkbox');
+      if (checkbox) {
+        checkbox.checked = selected;
+      }
+    }
+
+    this.updateDeleteSelectionControls();
   }
 
   filterReservations() {
@@ -301,6 +426,7 @@ class MobileAdmin {
     const reservation = this.reservations.find(r => r.id === id);
     if (!reservation) return;
 
+    this.resetModalState();
     const details = document.getElementById('reservation-details');
     details.innerHTML = `
       <div class="reservation-detail">
@@ -343,7 +469,22 @@ class MobileAdmin {
   }
 
   closeModal() {
+    this.resetModalState();
     document.getElementById('reservation-modal').style.display = 'none';
+  }
+
+  resetModalState() {
+    const details = document.getElementById('reservation-details');
+    const editBtn = document.getElementById('edit-reservation-btn');
+    const deleteBtn = document.getElementById('delete-reservation-btn');
+
+    details.classList.remove('edit-mode');
+    editBtn.textContent = 'Edit';
+    editBtn.disabled = false;
+    deleteBtn.style.display = '';
+    document.querySelectorAll('#reservation-modal .modal-close').forEach((button) => {
+      button.style.display = '';
+    });
   }
 
   async deleteCurrentReservation() {
@@ -377,11 +518,66 @@ class MobileAdmin {
     }
   }
 
+  async deleteSelectedReservations() {
+    const ids = Array.from(this.selectedReservationIds);
+    if (ids.length === 0) return;
+
+    const suffix = ids.length > 1 ? 's' : '';
+    if (!confirm(`Delete ${ids.length} selected reservation${suffix}? This action cannot be undone.`)) {
+      return;
+    }
+
+    this.isDeletingReservations = true;
+    this.updateDeleteSelectionControls();
+
+    const outcomes = await Promise.allSettled(ids.map(async (id) => {
+      const response = await fetch(`/api/reservations/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': 'Basic ' + this.authToken
+        }
+      });
+
+      if (response.status === 401) {
+        this.handleLogout();
+        throw new Error('Authentication required');
+      }
+
+      if (!response.ok) {
+        throw new Error(`Unable to delete reservation ${id}`);
+      }
+
+      return id;
+    }));
+
+    const deletedIds = new Set(
+      outcomes
+        .filter((outcome) => outcome.status === 'fulfilled')
+        .map((outcome) => outcome.value)
+    );
+    const failedCount = ids.length - deletedIds.size;
+
+    this.reservations = this.reservations.filter((reservation) => !deletedIds.has(reservation.id));
+    this.selectedReservationIds = new Set(ids.filter((id) => !deletedIds.has(id)));
+    this.isDeletingReservations = false;
+    this.loadStats();
+
+    if (failedCount === 0) {
+      this.isDeleteSelectionMode = false;
+      this.selectedReservationIds.clear();
+      this.renderReservations();
+      this.showToast(`${deletedIds.size} reservation${suffix} deleted successfully`);
+      return;
+    }
+
+    this.renderReservations();
+    this.showToast(`${deletedIds.size} deleted, ${failedCount} could not be deleted`, 'error');
+  }
+
   toggleEditMode() {
     const details = document.getElementById('reservation-details');
     const editBtn = document.getElementById('edit-reservation-btn');
     const deleteBtn = document.getElementById('delete-reservation-btn');
-    const closeBtn = document.querySelector('.modal-close');
 
     if (details.classList.contains('edit-mode')) {
       // Save changes
@@ -428,7 +624,6 @@ class MobileAdmin {
       details.classList.add('edit-mode');
       editBtn.textContent = 'Save';
       deleteBtn.style.display = 'none';
-      closeBtn.style.display = 'none';
     }
   }
 
